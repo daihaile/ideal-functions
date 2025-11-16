@@ -11,14 +11,14 @@ import numpy as np
 class Visualizer:
     """Handles Bokeh visualizations."""
 
-    def __init__(self, db_manager: DatabaseManager, best_fit_map: dict):
+    def __init__(self, db_manager: DatabaseManager, best_fit_ranking: dict):
         """
         Initalizes the visualizer
         :param db_manager:
         :param best_fit_map:
         """
         self.db_manager = db_manager
-        self.best_fit_map = best_fit_map
+        self.best_fit_ranking = best_fit_ranking
 
         #load data from db
         self.train_df = self.db_manager.read_table_to_dataframe("training_data")
@@ -34,23 +34,39 @@ class Visualizer:
         plots = []
         colors = Category10[10]
 
-        for i, (train_col, ideal_col) in enumerate(self.best_fit_map.items()):
+        for i, (train_col, top_fits) in enumerate(self.best_fit_ranking.items()):
 
+            best_ideal_col, best_ssq = top_fits[0]
             p = figure(
-                title=f"Training Data vs. Ideal Function for {train_col}",
+                title=f"Training {train_col} vs. Ideal Function for {best_ideal_col}",
                 x_axis_label="X",
                 y_axis_label="Y",
                 width=400,
                 height=300,
             )
 
-            # ideal function
+            if len(top_fits) > 2:
+                ideal_col_3rd, ssq_3rd = top_fits[2]
+                p.line(
+                    self.ideal_df['X'], self.ideal_df[ideal_col_3rd],
+                    line_width=2, line_color="gray", alpha=0.2,
+                    legend_label=f"3rd Best ({ideal_col_3rd}): SSQ {ssq_3rd:,.0f}"
+                )
+
+            if len(top_fits) > 1:
+                ideal_col_2nd, ssq_2nd = top_fits[1]
+                p.line(
+                    self.ideal_df['X'], self.ideal_df[ideal_col_2nd],
+                    line_width=2, line_color="gray", alpha=0.4,
+                    legend_label=f"2nd Best ({ideal_col_2nd}): SSQ {ssq_2nd:,.0f}"
+                )
+
             p.line(
                 self.ideal_df['X'],
-                self.ideal_df[ideal_col],
+                self.ideal_df[best_ideal_col],
                 line_width=2,
                 line_color="black",
-                legend_label="Ideal Function",
+                legend_label=f"Ideal ({best_ideal_col}): SSQ {best_ssq:,.2f}"
             )
 
             #training data
@@ -159,15 +175,25 @@ class Visualizer:
         test_data_plot = self.create_test_plot(test_file_path)
         deviation_hist = self.create_deviation_histogram()
 
-        layout = gridplot(
-            [
-                [training_plots[0], training_plots[1]],
-                [training_plots[2], training_plots[3]],
-                [test_data_plot],
-                [deviation_hist]
-            ],
-            sizing_mode="scale_width"
-        )
+        if len(training_plots) < 4:
+            print("Error: Could not generate training plots. Analysis might have found no matches.")
+            layout = gridplot(
+                [
+                    [test_data_plot],
+                    [deviation_hist]
+                ],
+                sizing_mode="scale_width"
+            )
+        else:
+            layout = gridplot(
+                [
+                    [training_plots[0], training_plots[1]],
+                    [training_plots[2], training_plots[3]],
+                    [test_data_plot],
+                    [deviation_hist]
+                ],
+                sizing_mode="scale_width"
+            )
 
         output_file(filename="visuals.html", title="Project Visualization Results")
         save(layout)

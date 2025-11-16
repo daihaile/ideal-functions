@@ -46,10 +46,10 @@ if __name__ == "__main__":
         print("\nPhase 1 (Data Loading) is complete.")
 
         analyzer = Analyzer(db_manager)
-        best_fit_map, max_deviations = analyzer.run_analysis()
+        best_fit_ranking, max_deviations = analyzer.run_analysis()
 
         print("\n---- Analysis results----")
-        print(f"Best fit map: {best_fit_map}")
+        print(f"Best-fit function ranking: {best_fit_ranking}")
         print(f"Max deviations: {max_deviations}")
 
         print("\nPhase 2 (Data Analysis) is complete.")
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
         print("\nPhase 3 is complete.")
 
-        visualizer = Visualizer(db_manager, best_fit_map)
+        visualizer = Visualizer(db_manager, best_fit_ranking)
         visualizer.generate_and_save_plots(
             test_file_path=TEST_FILE_PATH,
         )
