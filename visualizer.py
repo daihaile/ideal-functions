@@ -24,6 +24,10 @@ class Visualizer:
         self.ideal_df = self.db_manager.read_table_to_dataframe("ideal_functions")
         self.test_results_df = self.db_manager.read_table_to_dataframe("test_results")
 
+        self.winner_funcs = [v[0][0] for v in self.best_fit_ranking.values()]
+        self.colors = Category10[4]
+        self.color_map = {func: self.colors[i] for i, func in enumerate(self.winner_funcs)}
+
     def create_training_plots(self):
         """
         creates plots for training data
@@ -169,42 +173,75 @@ class Visualizer:
             ("Threshold", "@{Mapping_Threshold}{0.0000}")
         ])
 
-    def create_test_plot(self, test_file_path: str) -> figure:
+    def _create_mapped_plots(self) -> list:
         """
-        Creates a plot for the test file with ideal functions plotted
-        and mapped points color-coded to their ideal function.
+        Creates 4 separate plots, one for each set of mapped test points.
         """
-        # 1. Prepare data and color mapping
-        source = self._prepare_test_data(test_file_path)
-        color_mapper, winner_funcs, color_map = self._create_color_mapper()
+        plots = []
 
-        # 2. Create the plot figure
-        p = figure(
-            title="Test Data: Mapped Points and Ideal Functions",
-            x_axis_label="X", y_axis_label="Y",
-            width=800, height=400,
-        )
+        # We need to rename columns for plotting
+        results_df = self.test_results_df.rename(columns={
+            'X (test func)': 'X',
+            'Y (test func)': 'Y',
+            'No. of ideal func': 'status'
+        })
 
-        # 3. Plot the faint ideal function lines
-        self._plot_ideal_lines(p, winner_funcs, color_map)
+        for func_name, color in self.color_map.items():
+            # 1. Filter results for *only* this function
+            mapped_data = results_df[results_df['status'] == func_name]
 
-        # 4. Plot the test data scatter points
-        p.scatter(
-            x='X',
-            y='Y',
-            source=source,
-            color={'field': 'status', 'transform': color_mapper},
-            legend_field="status",
-            alpha=0.7,
-            size=5
-        )
+            if mapped_data.empty:
+                print(f"Warning: No test points were mapped to {func_name}. Skipping plot.")
+                # Add an empty plot to keep the grid layout
+                plots.append(figure(title=f"No points mapped to {func_name}",
+                                    width=400, height=300))
+                continue
 
-        # 5. Add the hover tool
-        p.add_tools(self._create_test_hover_tool())
+            source = ColumnDataSource(mapped_data)
 
-        p.legend.location = "top_left"
-        return p
+            # 2. Create the figure
+            p = figure(
+                title=f"Mapped Test Points for {func_name}",
+                x_axis_label="X", y_axis_label="Y",
+                width=400, height=300
+            )
 
+            # 3. Plot the ideal function line
+            p.line(
+                x=self.ideal_df['X'],
+                y=self.ideal_df[func_name],
+                line_color=color,
+                alpha=0.3,
+                line_width=3,
+                legend_label=f"Ideal: {func_name}"
+            )
+
+            # 4. Plot the mapped points
+            p.scatter(
+                x='X',
+                y='Y',
+                source=source,
+                color=color,
+                legend_label="Mapped Points",
+                alpha=0.7,
+                size=5
+            )
+
+            # 5. Add the hover tool
+            hover = HoverTool(tooltips=[
+                ("X", "@X{0.00}"),
+                ("Y (Test)", "@Y{0.000}"),
+                ("Mapped to", "@status"),
+                ("Orig. Train Func", "@{Original_Train_Func}"),
+                ("Y (Ideal)", "@Y_Ideal{0.000}"),
+                ("Deviation", "@{Delta Y (test func)}{0.0000}"),
+                ("Threshold", "@{Mapping_Threshold}{0.0000}")
+            ])
+            p.add_tools(hover)
+            p.legend.location = "top_left"
+            plots.append(p)
+
+        return plots
     def create_deviation_histogram(self):
         """
         creats a histogram of 'Delta Y'
@@ -223,7 +260,7 @@ class Visualizer:
             x_axis_label="Deviation",
             y_axis_label="Frequency",
             width=300,
-            height=800,
+            height=400,
         )
 
         p.quad(
@@ -241,23 +278,23 @@ class Visualizer:
         p.add_tools(hover)
         return p
 
-    def generate_and_save_plots(self, test_file_path: str):
+    def generate_and_save_plots(self):
         """
         generates plots and save to html file
         :param test_file_path:
         :return:
         """
 
-        print(f"Generating plots for {test_file_path}...")
+        print(f"Generating plots ...")
+
         training_plots = self.create_training_plots()
-        test_data_plot = self.create_test_plot(test_file_path)
+        mapped_plots = self._create_mapped_plots()
         deviation_hist = self.create_deviation_histogram()
 
-        if len(training_plots) < 4:
-            print("Error: Could not generate training plots. Analysis might have found no matches.")
+        if len(training_plots) < 4 or len(mapped_plots) < 4:
+            print("Error: Could not generate all plots. Check analysis results.")
             layout = gridplot(
                 [
-                    [test_data_plot],
                     [deviation_hist]
                 ],
                 sizing_mode="scale_width"
@@ -265,9 +302,10 @@ class Visualizer:
         else:
             layout = gridplot(
                 [
-                    [training_plots[0], training_plots[1]],
-                    [training_plots[2], training_plots[3]],
-                    [test_data_plot],
+                    [training_plots[0], mapped_plots[0]],  # Row 1: Train y1, y2
+                    [training_plots[1], mapped_plots[1]],  # Row 2: Map y1, y2
+                    [training_plots[2], mapped_plots[2]],  # Row 3: Train y3, y4
+                    [training_plots[3], mapped_plots[3]],  # Row 4: Map y3, y4
                     [deviation_hist]
                 ],
                 sizing_mode="scale_width"

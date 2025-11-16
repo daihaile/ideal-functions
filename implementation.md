@@ -39,16 +39,16 @@ This file tracks the development process for the `DLMDSPWP01` assignment.
 ## Phase 2: Core Analysis (Finding Best-Fit Functions)
 **Goal:** Find the 4 best ideal functions and the "max deviation" thresholds.
 
-- [ ] **Step 2.1: Create `Analyzer` Class**
-    - [ ] Create a new class for analysis logic, reading from Table 1 and Table 2.
+- [X] **Step 2.1: Create `Analyzer` Class**
+    - [X] Create a new class for analysis logic, reading from Table 1 and Table 2.
 
-- [ ] **Step 2.2: Implement Least-Squares Method**
-    - [ ] Write a method to calculate the **sum of squared deviations**.
-    - [ ] **Loop 1:** For each of the 4 training functions (Y1-Y4 in Table 1).
-    - [ ] **Loop 2:** Compare it against *all 50* ideal functions (Y1-Y50 in Table 2).
-    - [ ] Store the sum-of-squares result for each comparison.
+- [X] **Step 2.2: Implement Least-Squares Method**
+    - [X] Write a method to calculate the **sum of squared deviations**.
+    - [X] **Loop 1:** For each of the 4 training functions (Y1-Y4 in Table 1).
+    - [X] **Loop 2:** Compare it against *all 50* ideal functions (Y1-Y50 in Table 2).
+    - [X] Store the sum-of-squares result for each comparison.
 
-- [ ] **Step 2.3: Select 4 Best Functions**
+- [X] **Step 2.3: Select 4 Best Functions**
     - [ ] For each training function, find the ideal function with the **minimum** sum of squares.
     - [ ] Store these 4 chosen ideal functions (e.g., as a dictionary mapping).
 

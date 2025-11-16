@@ -3,7 +3,7 @@ import numpy as np
 from database import DatabaseManager
 
 
-class TestProcessor:
+class DataMapper:
     """
     Handles loading, processing, and mapping the test data.
     """
