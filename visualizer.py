@@ -4,7 +4,6 @@ from bokeh.plotting import figure, show
 from bokeh.models import ColumnDataSource, HoverTool, CategoricalColorMapper
 from bokeh.layouts import gridplot
 from bokeh.palettes import Category10
-from bokeh.transform import factor_cmap
 from bokeh.io import output_file, save
 import numpy as np
 
@@ -37,6 +36,25 @@ class Visualizer:
         for i, (train_col, top_fits) in enumerate(self.best_fit_ranking.items()):
 
             best_ideal_col, best_ssq = top_fits[0]
+
+            plot_data_dict = {
+                'X': self.train_df['X'],
+                'Y_train': self.train_df[train_col],
+                'Y_ideal_1': self.ideal_df[best_ideal_col]
+            }
+
+            plot_data_dict['Deviation'] = (plot_data_dict['Y_train'] - plot_data_dict['Y_ideal_1']).abs()
+
+            if len(top_fits) > 1:
+                ideal_col_2nd, ssq_2nd = top_fits[1]
+                plot_data_dict['Y_ideal_2'] = self.ideal_df[ideal_col_2nd]
+
+            if len(top_fits) > 2:
+                ideal_col_3rd, ssq_3rd = top_fits[2]
+                plot_data_dict['Y_ideal_3'] = self.ideal_df[ideal_col_3rd]
+
+            source = ColumnDataSource(pd.DataFrame(plot_data_dict))
+
             p = figure(
                 title=f"Training {train_col} vs. Ideal Function for {best_ideal_col}",
                 x_axis_label="X",
@@ -45,10 +63,11 @@ class Visualizer:
                 height=300,
             )
 
+
             if len(top_fits) > 2:
                 ideal_col_3rd, ssq_3rd = top_fits[2]
                 p.line(
-                    self.ideal_df['X'], self.ideal_df[ideal_col_3rd],
+                    x='X', y='Y_ideal_3', source=source,
                     line_width=2, line_color="gray", alpha=0.2,
                     legend_label=f"3rd Best ({ideal_col_3rd}): SSQ {ssq_3rd:,.0f}"
                 )
@@ -56,14 +75,14 @@ class Visualizer:
             if len(top_fits) > 1:
                 ideal_col_2nd, ssq_2nd = top_fits[1]
                 p.line(
-                    self.ideal_df['X'], self.ideal_df[ideal_col_2nd],
+                    x='X', y='Y_ideal_2', source=source,
                     line_width=2, line_color="gray", alpha=0.4,
                     legend_label=f"2nd Best ({ideal_col_2nd}): SSQ {ssq_2nd:,.0f}"
                 )
 
             p.line(
-                self.ideal_df['X'],
-                self.ideal_df[best_ideal_col],
+                x='X', y='Y_ideal_1',
+                source=source,
                 line_width=2,
                 line_color="black",
                 legend_label=f"Ideal ({best_ideal_col}): SSQ {best_ssq:,.2f}"
@@ -72,8 +91,7 @@ class Visualizer:
             #training data
 
             p.scatter(
-                x=self.train_df['X'],
-                y=self.train_df[train_col],
+                x='X', y='Y_train', source=source,
                 size=3,
                 alpha=0.5,
                 fill_color=colors[i],
@@ -81,49 +99,109 @@ class Visualizer:
                 line_color=None
             )
 
-            p.add_tools(HoverTool(tooltips=[("X", "@x"), ("Y", "@y")]))
+            hover = HoverTool(tooltips=[
+                ("X", "@X{0.00}"),
+                ("Y (Training)", "@Y_train{0.000}"),
+                ("Y (Ideal)", "@Y_ideal_1{0.000}"),  # Use Y_ideal_1
+                ("Deviation", "@Deviation{0.000}")
+            ])
+            p.add_tools(hover)
+            p.legend.location = "top_left"
             plots.append(p)
         return plots
 
+    def _prepare_test_data(self, test_file_path: str) -> ColumnDataSource:
+        """Loads, merges, and prepares all test data for plotting."""
+        all_test_data = pd.read_csv(test_file_path).rename(columns={'x': 'X', 'y': 'Y'})
 
-    def create_test_plot(self, test_file_path: str):
+        results_to_merge = self.test_results_df.rename(columns={
+            'X (test func)': 'X',
+            'Y (test func)': 'Y'
+        })
+
+        # Merge on both X and Y to fix the hover bug
+        all_test_data = pd.merge(all_test_data, results_to_merge, on=['X', 'Y'], how='left')
+
+        # 'status' column will contain 'y42', 'y11', or 'Unmapped'
+        all_test_data['status'] = all_test_data['No. of ideal func'].fillna('Unmapped')
+
+        return ColumnDataSource(all_test_data)
+
+    def _create_color_mapper(self):
+        """Creates the color mapper for the test plot."""
+        # Get the 4 winner function names (e.g., ['y42', 'y41', 'y11', 'y48'])
+        winner_funcs = [v[0][0] for v in self.best_fit_ranking.values()]
+
+        colors = Category10[4]
+        color_map = {func: colors[i] for i, func in enumerate(winner_funcs)}
+
+        factors = winner_funcs + ['Unmapped']
+
+        palette = list(colors) + ["#CAB2D6"]
+
+        mapper = CategoricalColorMapper(factors=factors, palette=palette)
+
+        return mapper, winner_funcs, color_map
+
+    def _plot_ideal_lines(self, p: figure, winner_funcs: list, color_map: dict):
+        """Plots the 4 ideal function lines on the figure."""
+        for func_name in winner_funcs:
+            color = color_map[func_name]
+            p.line(
+                x=self.ideal_df['X'],
+                y=self.ideal_df[func_name],
+                line_color=color,
+                alpha=0.3,
+                line_width=3,
+                legend_label=f"Ideal: {func_name}"
+            )
+
+    def _create_test_hover_tool(self) -> HoverTool:
+        """Creates the detailed hover tool for the test plot."""
+        return HoverTool(tooltips=[
+            ("X", "@X{0.00}"),
+            ("Y (Test)", "@Y{0.000}"),
+            ("Status", "@status"),
+            ("Mapped to", "@{No. of ideal func}"),
+            ("Orig. Train Func", "@{Original_Train_Func}"),
+            ("Y (Ideal)", "@Y_Ideal{0.000}"),
+            ("Deviation", "@{Delta Y (test func)}{0.0000}"),
+            ("Threshold", "@{Mapping_Threshold}{0.0000}")
+        ])
+
+    def create_test_plot(self, test_file_path: str) -> figure:
         """
-        creates a plot for a single test file
-        :param test_file_path:
-        :return:
+        Creates a plot for the test file with ideal functions plotted
+        and mapped points color-coded to their ideal function.
         """
+        # 1. Prepare data and color mapping
+        source = self._prepare_test_data(test_file_path)
+        color_mapper, winner_funcs, color_map = self._create_color_mapper()
 
-        test_data = pd.read_csv(test_file_path).rename(columns={'x': 'X', 'y': 'Y'})
-
-        mapped = self.test_results_df['X (test func)']
-
-        test_data['status'] = 'Unmapped'
-
-        test_data.loc[test_data['X'].isin(mapped), 'status'] = 'Mapped'
-
-        source = ColumnDataSource(test_data)
-        colors = ["#CAB2D6", "#FDBF6F"]
-
+        # 2. Create the plot figure
         p = figure(
-            title=f"Test Data Results for {test_file_path}",
-            x_axis_label="X",
-            y_axis_label="Y",
-            width=800,
-            height=400,
+            title="Test Data: Mapped Points and Ideal Functions",
+            x_axis_label="X", y_axis_label="Y",
+            width=800, height=400,
         )
 
-        color_mapper = CategoricalColorMapper(factors=['Unmapped', 'Mapped'], palette=colors)
+        # 3. Plot the faint ideal function lines
+        self._plot_ideal_lines(p, winner_funcs, color_map)
 
+        # 4. Plot the test data scatter points
         p.scatter(
             x='X',
             y='Y',
             source=source,
             color={'field': 'status', 'transform': color_mapper},
-            legend_label="Status",
+            legend_field="status",
             alpha=0.7,
+            size=5
         )
 
-        p.add_tools(HoverTool(tooltips=[("X", "@X"), ("Y", "@Y")]))
+        # 5. Add the hover tool
+        p.add_tools(self._create_test_hover_tool())
+
         p.legend.location = "top_left"
         return p
 

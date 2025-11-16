@@ -39,6 +39,9 @@ class TestResults(Base):
     Delta_Y = Column('Delta Y (test func)', Float)
     No_Ideal_Func = Column('No. of ideal func', String)
 
+    Y_Ideal = Column(Float)
+    Mapping_Threshold = Column(Float)
+    Original_Train_Func = Column(String)
 
 class DatabaseManager:
     """Handles database connection and in and output."""

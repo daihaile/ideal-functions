@@ -8,7 +8,7 @@ class TestProcessor:
     Handles loading, processing, and mapping the test data.
     """
 
-    def __init__(self, db_manager: DatabaseManager, ideal_df: pd.DataFrame, max_deviations: dict):
+    def __init__(self, db_manager: DatabaseManager, ideal_df: pd.DataFrame, max_deviations: dict, best_fit_ranking: dict):
         """
         Initializes the processor
 
@@ -19,6 +19,11 @@ class TestProcessor:
         self.max_deviations = max_deviations
         self.sqrt_2_factor = np.sqrt(2)
         self.results = []
+
+        self.ideal_to_train_map = {}
+        for train_col, top_fits in best_fit_ranking.items():
+            ideal_col = top_fits[0][0]
+            self.ideal_to_train_map[ideal_col] = train_col
 
     def process_test_file(self, test_file_path: str, output_csv_path: str = None):
         """
@@ -51,7 +56,10 @@ class TestProcessor:
                     'X': 'X (test func)',
                     'Y': 'Y (test func)',
                     'Delta_Y': 'Delta Y (test func)',
-                    'No_Ideal_Func': 'No. of ideal func'
+                    'No_Ideal_Func': 'No. of ideal func',
+                     'Y_Ideal': 'Y_Ideal',
+                    'Mapping_Threshold': 'Mapping_Threshold',
+                    'Original_Train_Func': 'Original_Train_Func'
                 })
 
                 self.db_manager.write_test_results(results_df, if_exists='replace')
@@ -86,9 +94,15 @@ class TestProcessor:
                     best_match = ideal_col
 
         if best_match is not None:
+            winning_y_ideal = ideal_y_values[best_match]
+            winning_threshold = self.max_deviations[best_match] * self.sqrt_2_factor
+            train_func = self.ideal_to_train_map[best_match]
             self.results.append({
                 'X': x_test,
                 'Y': y_test,
                 'Delta_Y': min_deviation,
-                'No_Ideal_Func': best_match  # e.g., 'Y12'
+                'No_Ideal_Func': best_match,
+                'Y_Ideal': winning_y_ideal,
+                'Mapping_Threshold': winning_threshold,
+                'Original_Train_Func': train_func
             })

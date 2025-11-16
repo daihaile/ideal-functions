@@ -1,6 +1,4 @@
-﻿import pandas as pd
-import numpy as np
-from database import DatabaseManager
+﻿from database import DatabaseManager
 
 class Analyzer:
     """

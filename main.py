@@ -1,9 +1,4 @@
 ﻿import sqlalchemy
-import pandas as pd
-import numpy as np
-from pandas.io.common import file_exists
-from sqlalchemy import create_engine, Column, Integer, Float, String
-from sqlalchemy.orm import declarative_base
 
 from analyzer import Analyzer
 from database import DatabaseManager
@@ -58,7 +53,8 @@ if __name__ == "__main__":
         processor = TestProcessor(
             db_manager=db_manager,
             ideal_df=ideal_df,
-            max_deviations=max_deviations
+            max_deviations=max_deviations,
+            best_fit_ranking=best_fit_ranking
         )
 
         processor.process_test_file(TEST_FILE_PATH, OUTPUT_FILE_PATH)
