@@ -29,7 +29,7 @@ class DataLoader:
 
 
 class TrainingLoader(DataLoader):
-    """Loads and processes the 4 training datasets."""
+    """Loads and processes the training datasets."""
 
     def __init__(self, file_path: str):
         # file_paths_list should be a list of the 4 training CSV paths
@@ -37,8 +37,7 @@ class TrainingLoader(DataLoader):
 
     def load_data(self):
         """
-        Loads the 4 training CSVs and merges them into
-        a single DataFrame matching Table 1.
+        Loads the CSVs and merges them into a single DataFrame matching Table 1.
         """
         df = super().load_data()
         print("Training data loaded...")
@@ -54,7 +53,6 @@ class IdealFunctionLoader(DataLoader):
     def load_data(self):
         """
         Loads the ideal functions CSV into a DataFrame
-        matching Table 2.
         """
         df = super().load_data()
         print("Ideal functions loaded.")

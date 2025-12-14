@@ -49,14 +49,14 @@ This file tracks the development process for the `DLMDSPWP01` assignment.
     - [X] Store the sum-of-squares result for each comparison.
 
 - [X] **Step 2.3: Select 4 Best Functions**
-    - [ ] For each training function, find the ideal function with the **minimum** sum of squares.
-    - [ ] Store these 4 chosen ideal functions (e.g., as a dictionary mapping).
+    - [X] For each training function, find the ideal function with the **minimum** sum of squares.
+    - [X] Store these 4 chosen ideal functions (e.g., as a dictionary mapping).
 
-- [ ] **Step 2.4: Calculate Max Deviation Thresholds**
-    - [ ] For each of the 4 "best-fit" pairs:
-    - [ ] Calculate `abs(y_train - y_ideal)` for every x-value.
-    - [ ] Find the **largest deviation** (`max`) in that set.
-    - [ ] Store these 4 "max training deviation" values.
+- [X] **Step 2.4: Calculate Max Deviation Thresholds**
+    - [X] For each of the 4 "best-fit" pairs:
+    - [X] Calculate `abs(y_train - y_ideal)` for every x-value.
+    - [X] Find the **largest deviation** (`max`) in that set.
+    - [X] Store these 4 "max training deviation" values.
 
 ---
 

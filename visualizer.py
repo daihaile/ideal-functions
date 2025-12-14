@@ -106,7 +106,7 @@ class Visualizer:
             hover = HoverTool(tooltips=[
                 ("X", "@X{0.00}"),
                 ("Y (Training)", "@Y_train{0.000}"),
-                ("Y (Ideal)", "@Y_ideal_1{0.000}"),  # Use Y_ideal_1
+                ("Y (Ideal)", "@Y_ideal_1{0.000}"),
                 ("Deviation", "@Deviation{0.000}")
             ])
             p.add_tools(hover)
@@ -123,17 +123,16 @@ class Visualizer:
             'Y (test func)': 'Y'
         })
 
-        # Merge on both X and Y to fix the hover bug
+        # fix the hover bug by merging X and Y
         all_test_data = pd.merge(all_test_data, results_to_merge, on=['X', 'Y'], how='left')
 
-        # 'status' column will contain 'y42', 'y11', or 'Unmapped'
+        # 'status' column will contain ideal function name or 'Unmapped'
         all_test_data['status'] = all_test_data['No. of ideal func'].fillna('Unmapped')
 
         return ColumnDataSource(all_test_data)
 
     def _create_color_mapper(self):
         """Creates the color mapper for the test plot."""
-        # Get the 4 winner function names (e.g., ['y42', 'y41', 'y11', 'y48'])
         winner_funcs = [v[0][0] for v in self.best_fit_ranking.values()]
 
         colors = Category10[4]
@@ -179,7 +178,6 @@ class Visualizer:
         """
         plots = []
 
-        # We need to rename columns for plotting
         results_df = self.test_results_df.rename(columns={
             'X (test func)': 'X',
             'Y (test func)': 'Y',
@@ -187,26 +185,22 @@ class Visualizer:
         })
 
         for func_name, color in self.color_map.items():
-            # 1. Filter results for *only* this function
             mapped_data = results_df[results_df['status'] == func_name]
 
             if mapped_data.empty:
                 print(f"Warning: No test points were mapped to {func_name}. Skipping plot.")
-                # Add an empty plot to keep the grid layout
                 plots.append(figure(title=f"No points mapped to {func_name}",
                                     width=400, height=300))
                 continue
 
             source = ColumnDataSource(mapped_data)
 
-            # 2. Create the figure
             p = figure(
                 title=f"Mapped Test Points for {func_name}",
                 x_axis_label="X", y_axis_label="Y",
                 width=400, height=300
             )
 
-            # 3. Plot the ideal function line
             p.line(
                 x=self.ideal_df['X'],
                 y=self.ideal_df[func_name],
@@ -216,7 +210,6 @@ class Visualizer:
                 legend_label=f"Ideal: {func_name}"
             )
 
-            # 4. Plot the mapped points
             p.scatter(
                 x='X',
                 y='Y',
@@ -227,7 +220,6 @@ class Visualizer:
                 size=5
             )
 
-            # 5. Add the hover tool
             hover = HoverTool(tooltips=[
                 ("X", "@X{0.00}"),
                 ("Y (Test)", "@Y{0.000}"),
@@ -302,10 +294,10 @@ class Visualizer:
         else:
             layout = gridplot(
                 [
-                    [training_plots[0], mapped_plots[0]],  # Row 1: Train y1, y2
-                    [training_plots[1], mapped_plots[1]],  # Row 2: Map y1, y2
-                    [training_plots[2], mapped_plots[2]],  # Row 3: Train y3, y4
-                    [training_plots[3], mapped_plots[3]],  # Row 4: Map y3, y4
+                    [training_plots[0], mapped_plots[0]],
+                    [training_plots[1], mapped_plots[1]],
+                    [training_plots[2], mapped_plots[2]],
+                    [training_plots[3], mapped_plots[3]],
                     [deviation_hist]
                 ],
                 sizing_mode="scale_width"
