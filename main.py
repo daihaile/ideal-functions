@@ -2,6 +2,7 @@
 
 from analyzer import Analyzer
 from database import DatabaseManager
+from exceptions.DataMismatcherror import DataMismatchError
 from processor import DataMapper
 from dataloader import TrainingLoader, IdealFunctionLoader, DataLoader
 from visualizer import Visualizer
@@ -57,8 +58,11 @@ if __name__ == "__main__":
         # visualization
 
         visualizer = Visualizer(db_manager, best_fit_ranking)
-        visualizer.generate_and_save_plots()
+        visualizer.generate_and_save_plots(TEST_FILE_PATH)
 
+        # visualization end
+    except DataMismatchError as e:
+        print(f"Data mismatch error: {e}")
     except FileNotFoundError as e:
         print(f"Error: File not found at {e.filename}")
     except Exception as e:

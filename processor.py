@@ -5,12 +5,16 @@ from database import DatabaseManager
 
 class DataMapper:
     """
-    Handles loading, processing, and mapping the test data.
+    Map test points to ideal function using sqrt(2)
     """
 
     def __init__(self, db_manager: DatabaseManager, ideal_df: pd.DataFrame, max_deviations: dict, best_fit_ranking: dict):
         """
-        Initializes the processor
+        Set up mapper with chosen functions and thresholds
+        :param db_manager: database access for writing test results
+        :param ideal_df: ideal functions data frame
+        :param max_deviations: max deviation threshold for each ideal function
+        :param best_fit_ranking: best fit ranking for each ideal function
 
         """
         self.db_manager = db_manager
@@ -28,6 +32,10 @@ class DataMapper:
     def process_test_file(self, test_file_path: str, output_csv_path: str = None):
         """
         Reads the test CSV file line-by-line, processes each point and saves the results to the database.
+        :param test_file_path: path to the test CSV file
+        :param output_csv_path: path to save the results CSV file
+
+        :raises FileNotFoundError: if the test file is not found
         """
         print(f"Starting to process test file: {test_file_path}...")
 
@@ -73,7 +81,10 @@ class DataMapper:
 
     def map_point(self, x_test: float, y_test: float):
         """
-        Applies the mapping for a single (x, y) test point.
+        try to map one test point (x,y) to an ideal function
+        point is mapped if:
+             abs(y_test - y_ideal) <= max_deviation(ideal) * sqrt(2)
+        if multiple functions match, the one with the lowest deviation is chosen
         """
         try:
             ideal_y_values = self.ideal_data.loc[x_test]

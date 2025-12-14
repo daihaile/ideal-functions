@@ -27,7 +27,11 @@ class Analyzer:
     def run_analysis(self):
         """
         runs analysis to find top 3 best fit functions + deviation thresholds
-        :return:
+        Uses least squares (sum of all y-deviations squared) to rank ideal functions
+        also computes max deviation for the best match, later used as a mapping threshold for test points
+
+        :returns
+            tuple[dict, dict]: best fit ranking and max deviations for each ideal function
         """
 
         print("Start analysis")
