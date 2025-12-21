@@ -1,6 +1,4 @@
-﻿import sqlalchemy
-
-from analyzer import Analyzer
+﻿from analyzer import Analyzer
 from database import DatabaseManager
 from exceptions.DataMismatcherror import DataMismatchError
 from processor import DataMapper
