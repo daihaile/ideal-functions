@@ -1,5 +1,6 @@
 ﻿from database import DatabaseManager
 
+
 class Analyzer:
     """
     handles analysis of finding best fit functions and calculating deviation
@@ -12,12 +13,13 @@ class Analyzer:
         """
         self.db_manager = db_manager
 
-        #load data from db
+        # load data from db
 
         self.train_df = self.db_manager.read_table_to_dataframe("training_data")
         self.ideal_df = self.db_manager.read_table_to_dataframe("ideal_functions")
 
-        self.train_df_aligned, self.ideal_df_aligned = self.train_df.align(self.ideal_df, join='inner', axis=0, copy=True)
+        self.train_df_aligned, self.ideal_df_aligned = self.train_df.align(self.ideal_df, join='inner', axis=0,
+                                                                           copy=True)
 
         self.best_fit_ranking = {}
         self.max_deviations = {}
@@ -25,7 +27,11 @@ class Analyzer:
     def run_analysis(self):
         """
         runs analysis to find top 3 best fit functions + deviation thresholds
-        :return:
+        Uses least squares (sum of all y-deviations squared) to rank ideal functions
+        also computes max deviation for the best match, later used as a mapping threshold for test points
+
+        :returns
+            tuple[dict, dict]: best fit ranking and max deviations for each ideal function
         """
 
         print("Start analysis")
@@ -52,17 +58,15 @@ class Analyzer:
             sorted_results = sorted(results_list)
             best_fit_sum, best_ideal_col = sorted_results[0]
 
-            #[('Y35', 10.5), ('Y24', 50.2), ('Y12', 100.9)]
             self.best_fit_ranking[train_col] = [
-                (col, ssq) for ssq, col in sorted_results[:3]
+                (col, ssq) for ssq, col in sorted_results[:3] # top 3
             ]
-            print(f"    -> Best fit for {train_col} is {best_ideal_col} (SumSq: {best_fit_sum:.2f})")
+            print(f"    -> Best fit for {train_col} is {best_ideal_col} (Sum of squares: {best_fit_sum:.2f})")
 
             best_ideal_series = self.ideal_df_aligned[best_ideal_col]
             max_deviation = (abs(train_series - best_ideal_series)).max()
             self.max_deviations[best_ideal_col] = max_deviation
             print(f"    -> Max deviation for {best_ideal_col} is {max_deviation:.4f}")
-
 
         print("Analysis finished")
         return self.best_fit_ranking, self.max_deviations

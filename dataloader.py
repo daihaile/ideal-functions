@@ -1,22 +1,32 @@
 ﻿import pandas as pd
 
+from exceptions.DataMismatcherror import DataMismatchError
+
+
 class DataLoader:
     """
-    class for loading data.
+    class for loading data. Subclasses can reuse load_data() function to load different types of data.
     """
 
     def __init__(self, file_path):
+        """Create a loader for a giving csv file path"""
         self.file_path = file_path
 
     def load_data(self):
-        """Loads data from a file. This method should be overridden."""
+        """Read csv file and return a DataFrame
+         :return
+            pandas DataFrame
+        :raises
+            DataMismatchError
+
+         """
         print(f"Loading data from {self.file_path}")
         try:
             df = pd.read_csv(self.file_path)
             if 'x' in df.columns:
                 df.rename(columns={'x': 'X'}, inplace=True)
             if 'X' not in df.columns:
-                raise ValueError("No 'X' column found in the data.")
+                raise DataMismatchError(f"Missing required column 'X' in '{self.file_path}'. Found columns: {list(df.columns)}")
 
             print(f"Data loaded from {self.file_path}")
             return df
@@ -29,16 +39,15 @@ class DataLoader:
 
 
 class TrainingLoader(DataLoader):
-    """Loads and processes the 4 training datasets."""
+    """Loads the training dataset."""
 
     def __init__(self, file_path: str):
-        # file_paths_list should be a list of the 4 training CSV paths
+        """Create a loader for the training CSV file."""
         super().__init__(file_path)
 
     def load_data(self):
         """
-        Loads the 4 training CSVs and merges them into
-        a single DataFrame matching Table 1.
+        Load and returns the training data
         """
         df = super().load_data()
         print("Training data loaded...")
@@ -46,15 +55,15 @@ class TrainingLoader(DataLoader):
 
 
 class IdealFunctionLoader(DataLoader):
-    """Loads  ideal functions."""
+    """Loads ideal functions."""
 
     def __init__(self, file_path):
+        """Create a loader for the ideal functions CSV file."""
         super().__init__(file_path)
 
     def load_data(self):
         """
         Loads the ideal functions CSV into a DataFrame
-        matching Table 2.
         """
         df = super().load_data()
         print("Ideal functions loaded.")

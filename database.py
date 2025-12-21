@@ -6,7 +6,7 @@ Base = declarative_base()
 
 class TrainingData(Base):
     """
-    Schema for table 1 with Training data.
+    SQLAlchemy model for the training data table
     """
     __tablename__ = "training_data"
     X = Column(Float, primary_key=True)
@@ -17,7 +17,7 @@ class TrainingData(Base):
 
 class IdealFunctions(Base):
     """
-    Schema for Table 2: The 50 ideal functions.
+    SQLAlchemy model for the ideal functions table
     """
     __tablename__ = 'ideal_functions'
 
@@ -29,7 +29,7 @@ class IdealFunctions(Base):
 
 class TestResults(Base):
     """
-    Schema for Table 3: The mapped test data results.
+    SQLAlchemy model for the test results table
     """
     __tablename__ = 'test_results'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -44,7 +44,9 @@ class TestResults(Base):
     Original_Train_Func = Column(String)
 
 class DatabaseManager:
-    """Handles database connection and in and output."""
+    """
+    helper class for managing database operations
+    """
 
     def __init__(self, db_name="idealfunction.db"):
         """Init database engine."""
