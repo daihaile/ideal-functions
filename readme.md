@@ -18,4 +18,4 @@ After running, you should get:
 - an interactive visualization report at: `visuals.html`
 
 ### Open the visualization report
-Open `visuals.html` in your browser (double click it or use a command like):
+Open `visuals.html` in your browser (double click it):
