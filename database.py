@@ -4,6 +4,15 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
+# Column name constants for TestResults — single source of truth
+COL_X_TEST = 'X (test func)'
+COL_Y_TEST = 'Y (test func)'
+COL_DELTA_Y_TEST = 'Delta Y (test func)'
+COL_NO_IDEAL_FUNC = 'No. of ideal func'
+COL_Y_IDEAL = 'Y_Ideal'
+COL_MAPPING_THRESHOLD = 'Mapping_Threshold'
+COL_ORIGINAL_TRAIN_FUNC = 'Original_Train_Func'
+
 class TrainingData(Base):
     """
     SQLAlchemy model for the training data table
@@ -34,14 +43,14 @@ class TestResults(Base):
     __tablename__ = 'test_results'
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    X = Column('X (test func)', Float)
-    Y = Column('Y (test func)', Float)
-    Delta_Y = Column('Delta Y (test func)', Float)
-    No_Ideal_Func = Column('No. of ideal func', String)
+    X = Column(COL_X_TEST, Float)
+    Y = Column(COL_Y_TEST, Float)
+    Delta_Y = Column(COL_DELTA_Y_TEST, Float)
+    No_Ideal_Func = Column(COL_NO_IDEAL_FUNC, String)
 
-    Y_Ideal = Column(Float)
-    Mapping_Threshold = Column(Float)
-    Original_Train_Func = Column(String)
+    Y_Ideal = Column(COL_Y_IDEAL, Float)
+    Mapping_Threshold = Column(COL_MAPPING_THRESHOLD, Float)
+    Original_Train_Func = Column(COL_ORIGINAL_TRAIN_FUNC, String)
 
 class DatabaseManager:
     """

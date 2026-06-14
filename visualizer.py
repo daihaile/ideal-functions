@@ -1,5 +1,5 @@
 ﻿import pandas as pd
-from database import DatabaseManager
+from database import DatabaseManager, COL_X_TEST, COL_Y_TEST, COL_DELTA_Y_TEST, COL_NO_IDEAL_FUNC, COL_Y_IDEAL, COL_MAPPING_THRESHOLD, COL_ORIGINAL_TRAIN_FUNC
 from bokeh.plotting import figure, show
 from bokeh.models import ColumnDataSource, HoverTool, CategoricalColorMapper
 from bokeh.layouts import gridplot
@@ -119,20 +119,20 @@ class Visualizer:
         all_test_data = pd.read_csv(test_file_path).rename(columns={'x': 'X', 'y': 'Y'})
 
         results_to_merge = self.test_results_df.rename(columns={
-            'X (test func)': 'X',
-            'Y (test func)': 'Y'
+            COL_X_TEST: 'X',
+            COL_Y_TEST: 'Y'
         })
 
         # fix the hover bug by merging X and Y
         all_test_data = pd.merge(all_test_data, results_to_merge, on=['X', 'Y'], how='left')
 
         # 'status' column will contain ideal function name or 'Unmapped'
-        all_test_data['status'] = all_test_data['No. of ideal func'].fillna('Unmapped')
+        all_test_data['status'] = all_test_data[COL_NO_IDEAL_FUNC].fillna('Unmapped')
 
         base_size = 4
         max_size = 14
 
-        deviation_col = 'Delta Y (test func)'
+        deviation_col = COL_DELTA_Y_TEST
         # compute sizes if deviation column exists
         if deviation_col in all_test_data.columns:
 
@@ -197,11 +197,11 @@ class Visualizer:
             ("X", "@X{0.00}"),
             ("Y (Test)", "@Y{0.000}"),
             ("Status", "@status"),
-            ("Mapped to", "@{No. of ideal func}"),
-            ("Orig. Train Func", "@{Original_Train_Func}"),
-            ("Y (Ideal)", "@Y_Ideal{0.000}"),
-            ("Deviation", "@{Delta Y (test func)}{0.0000}"),
-            ("Threshold", "@{Mapping_Threshold}{0.0000}")
+            ("Mapped to", f"@{{{COL_NO_IDEAL_FUNC}}}"),
+            ("Orig. Train Func", f"@{{{COL_ORIGINAL_TRAIN_FUNC}}}"),
+            ("Y (Ideal)", f"@{COL_Y_IDEAL}{{0.000}}"),
+            ("Deviation", f"@{{{COL_DELTA_Y_TEST}}}{{0.0000}}"),
+            ("Threshold", f"@{{{COL_MAPPING_THRESHOLD}}}{{0.0000}}")
         ])
 
     def _create_mapped_plots(self) -> list:
@@ -211,9 +211,9 @@ class Visualizer:
         plots = []
 
         results_df = self.test_results_df.rename(columns={
-            'X (test func)': 'X',
-            'Y (test func)': 'Y',
-            'No. of ideal func': 'status'
+            COL_X_TEST: 'X',
+            COL_Y_TEST: 'Y',
+            COL_NO_IDEAL_FUNC: 'status'
         })
 
         for func_name, color in self.color_map.items():
@@ -256,10 +256,10 @@ class Visualizer:
                 ("X", "@X{0.00}"),
                 ("Y (Test)", "@Y{0.000}"),
                 ("Mapped to", "@status"),
-                ("Orig. Train Func", "@{Original_Train_Func}"),
-                ("Y (Ideal)", "@Y_Ideal{0.000}"),
-                ("Deviation", "@{Delta Y (test func)}{0.0000}"),
-                ("Threshold", "@{Mapping_Threshold}{0.0000}")
+                ("Orig. Train Func", f"@{{{COL_ORIGINAL_TRAIN_FUNC}}}"),
+                ("Y (Ideal)", f"@{COL_Y_IDEAL}{{0.000}}"),
+                ("Deviation", f"@{{{COL_DELTA_Y_TEST}}}{{0.0000}}"),
+                ("Threshold", f"@{{{COL_MAPPING_THRESHOLD}}}{{0.0000}}")
             ])
             p.add_tools(hover)
             p.legend.location = "top_left"
@@ -272,7 +272,7 @@ class Visualizer:
         :return:
         """
 
-        deviations = self.test_results_df['Delta Y (test func)']
+        deviations = self.test_results_df[COL_DELTA_Y_TEST]
 
         hist, edges = np.histogram(deviations, density=True, bins=20)
 

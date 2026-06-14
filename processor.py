@@ -1,6 +1,6 @@
 ﻿import pandas as pd
 import numpy as np
-from database import DatabaseManager
+from database import DatabaseManager, COL_X_TEST, COL_Y_TEST, COL_DELTA_Y_TEST, COL_NO_IDEAL_FUNC, COL_Y_IDEAL, COL_MAPPING_THRESHOLD, COL_ORIGINAL_TRAIN_FUNC
 
 
 class DataMapper:
@@ -61,13 +61,13 @@ class DataMapper:
                         print(f"Error saving to CSV: {e}")
 
                 results_df = results_df.rename(columns={
-                    'X': 'X (test func)',
-                    'Y': 'Y (test func)',
-                    'Delta_Y': 'Delta Y (test func)',
-                    'No_Ideal_Func': 'No. of ideal func',
-                     'Y_Ideal': 'Y_Ideal',
-                    'Mapping_Threshold': 'Mapping_Threshold',
-                    'Original_Train_Func': 'Original_Train_Func'
+                    'X': COL_X_TEST,
+                    'Y': COL_Y_TEST,
+                    'Delta_Y': COL_DELTA_Y_TEST,
+                    'No_Ideal_Func': COL_NO_IDEAL_FUNC,
+                     'Y_Ideal': COL_Y_IDEAL,
+                    'Mapping_Threshold': COL_MAPPING_THRESHOLD,
+                    'Original_Train_Func': COL_ORIGINAL_TRAIN_FUNC
                 })
 
                 self.db_manager.write_test_results(results_df, if_exists='replace')
