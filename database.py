@@ -19,10 +19,10 @@ class TrainingData(Base):
     """
     __tablename__ = "training_data"
     X = Column(Float, primary_key=True)
-    Y1 = Column(Float)
-    Y2 = Column(Float)
-    Y3 = Column(Float)
-    Y4 = Column(Float)
+    y1 = Column(Float)
+    y2 = Column(Float)
+    y3 = Column(Float)
+    y4 = Column(Float)
 
 class IdealFunctions(Base):
     """
@@ -33,7 +33,7 @@ class IdealFunctions(Base):
     X = Column(Float, primary_key=True)
 
     for i in range(1, 51):
-        vars()[f'Y{i}'] = Column(Float)
+        vars()[f'y{i}'] = Column(Float)
 
 
 class TestResults(Base):
@@ -65,11 +65,14 @@ class DatabaseManager:
         print(f"Database '{self.db_path}' and tables created.")
 
     def write_data_with_x_index(self, df, table_name, if_exists='replace'):
-        """Writes a DataFrame using 'X' as the primary key """
+        """Writes a DataFrame to a table whose 'X' column is the primary key"""
         try:
+            table = Base.metadata.tables[table_name]
             with self.engine.connect() as conn:
-                df_with_index = df.set_index('X')
-                df_with_index.to_sql(table_name, conn, if_exists=if_exists, index=True, index_label='X')
+                if if_exists == 'replace':
+                    table.drop(self.engine, checkfirst=True)
+                    table.create(self.engine)
+                df.to_sql(table_name, conn, if_exists='append', index=False)
             print(f"Successfully wrote data to '{table_name}'.")
         except Exception as e:
             print(f"Error writing to database: {e}")

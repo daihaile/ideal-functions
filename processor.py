@@ -1,4 +1,6 @@
-﻿import pandas as pd
+﻿import os
+
+import pandas as pd
 import numpy as np
 from database import DatabaseManager, COL_X_TEST, COL_Y_TEST, COL_DELTA_Y_TEST, COL_NO_IDEAL_FUNC, COL_Y_IDEAL, COL_MAPPING_THRESHOLD, COL_ORIGINAL_TRAIN_FUNC
 
@@ -23,6 +25,7 @@ class DataMapper:
         self.max_deviations = max_deviations
         self.sqrt_2_factor = np.sqrt(2)
         self.results = []
+        self.total_processed = 0
 
         self.ideal_to_train_map = {}
         for train_col, top_fits in best_fit_ranking.items():
@@ -86,6 +89,7 @@ class DataMapper:
              abs(y_test - y_ideal) <= max_deviation(ideal) * sqrt(2)
         if multiple functions match, the one with the lowest deviation is chosen
         """
+        self.total_processed += 1
         try:
             ideal_y_values = self.ideal_data.loc[x_test]
         except KeyError:
@@ -117,3 +121,82 @@ class DataMapper:
                 'Mapping_Threshold': winning_threshold,
                 'Original_Train_Func': train_func
             })
+
+    def compute_mapping_statistics(self, output_path: str = "output/mapping_statistics.csv") -> dict:
+        """
+        Summarize how many test points were mapped and how well they fit, including overall totals.
+
+        Writes one row per mapped ideal function (mapped count and min/max/mean/std
+        of the vertical deviation Delta Y) plus a final OVERALL row, and prints the
+        overall totals (processed, mapped, unmapped, rejection rate) to stdout.
+
+        :param output_path: destination CSV path
+        :return: dict with the overall counts and the per-ideal DataFrame
+        """
+        total_processed = self.total_processed
+        mapped = len(self.results)
+        unmapped = total_processed - mapped
+        rejection_rate = (unmapped / total_processed) if total_processed else 0.0
+
+        results_df = pd.DataFrame(self.results)
+
+        if mapped:
+            per_ideal = (
+                results_df
+                .groupby('No_Ideal_Func')['Delta_Y']
+                .agg(['count', 'min', 'max', 'mean', 'std'])
+                .reset_index()
+                .rename(columns={
+                    'No_Ideal_Func': 'Ideal_Function',
+                    'count': 'Mapped_Count',
+                    'min': 'Min_Delta_Y',
+                    'max': 'Max_Delta_Y',
+                    'mean': 'Mean_Delta_Y',
+                    'std': 'Std_Delta_Y',
+                })
+            )
+            per_ideal.insert(
+                1, 'Original_Train_Func',
+                per_ideal['Ideal_Function'].map(self.ideal_to_train_map),
+            )
+        else:
+            per_ideal = pd.DataFrame(columns=[
+                'Ideal_Function', 'Original_Train_Func', 'Mapped_Count',
+                'Min_Delta_Y', 'Max_Delta_Y', 'Mean_Delta_Y', 'Std_Delta_Y',
+            ])
+
+        overall = pd.DataFrame([{
+            'Ideal_Function': 'OVERALL',
+            'Original_Train_Func': '',
+            'Mapped_Count': mapped,
+            'Total_Processed': total_processed,
+            'Unmapped_Count': unmapped,
+            'Rejection_Rate': rejection_rate,
+            'Min_Delta_Y': results_df['Delta_Y'].min() if mapped else None,
+            'Max_Delta_Y': results_df['Delta_Y'].max() if mapped else None,
+            'Mean_Delta_Y': results_df['Delta_Y'].mean() if mapped else None,
+            'Std_Delta_Y': results_df['Delta_Y'].std() if mapped else None,
+        }])
+        statistics_df = pd.concat([per_ideal, overall], ignore_index=True)
+        statistics_df = statistics_df.reindex(columns=[
+            'Ideal_Function', 'Original_Train_Func', 'Mapped_Count',
+            'Total_Processed', 'Unmapped_Count', 'Rejection_Rate',
+            'Min_Delta_Y', 'Max_Delta_Y', 'Mean_Delta_Y', 'Std_Delta_Y',
+        ])
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        statistics_df.to_csv(output_path, index=False)
+
+        print(f"Total test points processed: {total_processed}")
+        print(f"Mapped: {mapped} | Unmapped: {unmapped} | Rejection rate: {rejection_rate:.2%}")
+        print(f"Successfully saved mapping statistics to {output_path}")
+
+        return {
+            'total_processed': total_processed,
+            'mapped': mapped,
+            'unmapped': unmapped,
+            'rejection_rate': rejection_rate,
+            'per_ideal': per_ideal,
+        }

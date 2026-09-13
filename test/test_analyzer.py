@@ -1,6 +1,7 @@
 ﻿import pandas as pd
 import pytest
 from unittest.mock import MagicMock
+import numpy as np
 import sys
 import os
 
@@ -61,3 +62,46 @@ def test_analyzer_run_analysis(mock_db_manager):
     assert best_fit_ranking['y1'][2][1] == pytest.approx(0.83)
     assert 'y2' in max_deviations
     assert max_deviations['y2'] == pytest.approx(0.0)
+
+
+def test_analyzer_export_summary_table(mock_db_manager, tmp_path):
+    analyzer = Analyzer(mock_db_manager)
+    analyzer.run_analysis()
+
+    out = tmp_path / "analysis_summary.csv"
+    summary = analyzer.export_summary_table(output_path=str(out))
+
+    assert list(summary.columns) == [
+        'Training_Col', 'Best_Ideal', 'SSQ_Best', 'Second_Best', 'SSQ_Second',
+        'Third_Best', 'SSQ_Third', 'Max_Deviation', 'Threshold_sqrt2',
+    ]
+    row = summary[summary['Training_Col'] == 'y1'].iloc[0]
+    assert row['Best_Ideal'] == 'y2'
+    assert row['SSQ_Best'] == pytest.approx(0.0)
+    assert row['Second_Best'] == 'y3'
+    assert row['SSQ_Second'] == pytest.approx(0.03)
+    assert row['Third_Best'] == 'y1'
+    assert row['SSQ_Third'] == pytest.approx(0.83)
+    assert row['Max_Deviation'] == pytest.approx(0.0)
+    assert row['Threshold_sqrt2'] == pytest.approx(0.0)
+    assert out.exists()
+
+
+def test_analyzer_export_summary_table_threshold_uses_sqrt2(tmp_path):
+    """Threshold_sqrt2 must equal Max_Deviation * sqrt(2) for a non-zero deviation."""
+    train_df = pd.DataFrame({'X': [1, 2, 3], 'y1': [1.1, 2.1, 3.1]})
+    ideal_df = pd.DataFrame({'X': [1, 2, 3], 'y2': [1.0, 2.0, 3.0], 'y3': [1.0, 2.0, 4.0]})
+    mock_db = MagicMock()
+    mock_db.read_table_to_dataframe.side_effect = [train_df, ideal_df]
+
+    analyzer = Analyzer(mock_db)
+    analyzer.run_analysis()
+
+    out = tmp_path / "analysis_summary_sqrt2.csv"
+    summary = analyzer.export_summary_table(output_path=str(out))
+
+    row = summary.iloc[0]
+    assert row['Best_Ideal'] == 'y2'
+    assert row['Max_Deviation'] == pytest.approx(0.1)          # non-zero, unlike the shared fixture
+    assert row['Threshold_sqrt2'] == pytest.approx(row['Max_Deviation'] * np.sqrt(2))
+    assert out.exists()

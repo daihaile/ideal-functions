@@ -8,7 +8,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from dataloader import DataLoader
-from exceptions.DataMismatcherror import DataMismatchError
+from exceptions.data_mismatch_error import DataMismatchError
 
 
 def test_dataloader_raises_datamismatch(tmp_path):

@@ -2,7 +2,7 @@ import traceback
 
 from analyzer import Analyzer
 from database import DatabaseManager
-from exceptions.DataMismatcherror import DataMismatchError
+from exceptions.data_mismatch_error import DataMismatchError
 from processor import DataMapper
 from dataloader import TrainingLoader, IdealFunctionLoader
 from visualizer import Visualizer
@@ -34,6 +34,7 @@ class Pipeline:
 
             analyzer = Analyzer(db_manager)
             best_fit_ranking, max_deviations = analyzer.run_analysis()
+            analyzer.export_summary_table()
             print("\n---- Analysis results----")
             print(f"Best-fit function ranking: {best_fit_ranking}")
             print(f"Max deviations: {max_deviations}")
@@ -45,6 +46,7 @@ class Pipeline:
                 best_fit_ranking=best_fit_ranking,
             )
             processor.process_test_file(self.test_path, self.output_csv_path)
+            processor.compute_mapping_statistics()
 
             visualizer = Visualizer(db_manager, best_fit_ranking)
             visualizer.generate_and_save_plots(self.test_path)

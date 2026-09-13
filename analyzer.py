@@ -1,4 +1,26 @@
-﻿from database import DatabaseManager
+﻿"""Least-squares analysis of the training data against the 50 ideal functions.
+
+For every training column the Analyzer computes the sum of squared deviations
+(SSQ) to each ideal function and ranks the candidates, implementing the
+assignment's selection criterion::
+
+    SSQ_j = sum_i (y_train(x_i) - y_ideal_j(x_i)) ** 2
+
+
+For each training column the best-ranked ideal function and its maximum absolute
+deviation are retained. The mapping stage scales that deviation by sqrt(2) widening the vertical tolerance
+applied to test points.
+
+The second- and third-ranked candidates are recorded only as a diagnostic for how
+clearly the winner stands out; they are not used for mapping.
+"""
+
+import os
+
+import numpy as np
+import pandas as pd
+
+from database import DatabaseManager
 
 
 class Analyzer:
@@ -70,3 +92,48 @@ class Analyzer:
 
         print("Analysis finished")
         return self.best_fit_ranking, self.max_deviations
+
+    def export_summary_table(self, output_path: str = "output/analysis_summary.csv") -> pd.DataFrame:
+        """
+        Export a one-row-per-training-column summary of the least-squares analysis.
+
+        Columns: Training_Col, Best_Ideal, SSQ_Best, Second_Best, SSQ_Second,
+        Third_Best, SSQ_Third, Max_Deviation, Threshold_sqrt2. The threshold is
+        the max absolute deviation of the best fit multiplied by sqrt(2), i.e.
+        the value later applied when mapping test points.
+
+        :param output_path: destination CSV path
+        :return: the summary DataFrame
+        """
+        rows = []
+        for train_col, top_fits in self.best_fit_ranking.items():
+            if not top_fits:
+                continue
+
+            best_ideal, ssq_best = top_fits[0]
+            second_ideal, ssq_second = top_fits[1] if len(top_fits) > 1 else (None, None)
+            third_ideal, ssq_third = top_fits[2] if len(top_fits) > 2 else (None, None)
+
+            max_deviation = self.max_deviations.get(best_ideal)
+            threshold = max_deviation * np.sqrt(2) if max_deviation is not None else None
+
+            rows.append({
+                'Training_Col': train_col,
+                'Best_Ideal': best_ideal,
+                'SSQ_Best': ssq_best,
+                'Second_Best': second_ideal,
+                'SSQ_Second': ssq_second,
+                'Third_Best': third_ideal,
+                'SSQ_Third': ssq_third,
+                'Max_Deviation': max_deviation,
+                'Threshold_sqrt2': threshold,
+            })
+
+        summary_df = pd.DataFrame(rows)
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        summary_df.to_csv(output_path, index=False)
+        print(f"Successfully saved analysis summary to {output_path}")
+        return summary_df
