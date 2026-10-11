@@ -11,6 +11,10 @@ For each training column the best-ranked ideal function and its maximum absolute
 deviation are retained. The mapping stage scales that deviation by sqrt(2) widening the vertical tolerance
 applied to test points.
 
+The training and ideal tables are paired on the X coordinate (not by row
+position) and must contain identical X values without duplicates; otherwise a
+DataMismatchError is raised.
+
 The second- and third-ranked candidates are recorded only as a diagnostic for how
 clearly the winner stands out; they are not used for mapping.
 """
@@ -21,11 +25,13 @@ import numpy as np
 import pandas as pd
 
 from database import DatabaseManager
+from exceptions.data_mismatch_error import DataMismatchError
 
 
 class Analyzer:
     """
-    handles analysis of finding best fit functions and calculating deviation
+    handles analysis of finding best fit functions and calculating deviation.
+    Training and ideal tables are paired on X and must contain identical X values.
     """
 
     def __init__(self, db_manager: DatabaseManager):
@@ -40,8 +46,25 @@ class Analyzer:
         self.train_df = self.db_manager.read_table_to_dataframe("training_data")
         self.ideal_df = self.db_manager.read_table_to_dataframe("ideal_functions")
 
-        self.train_df_aligned, self.ideal_df_aligned = self.train_df.align(self.ideal_df, join='inner', axis=0,
-                                                                           copy=True)
+        for name, df in (("training_data", self.train_df), ("ideal_functions", self.ideal_df)):
+            if df is None or df.empty or 'X' not in df.columns:
+                raise DataMismatchError(
+                    f"Table '{name}' is empty or lacks the required column 'X'. "
+                    f"Found columns: {list(df.columns) if df is not None else []}")
+            if df['X'].duplicated().any():
+                raise DataMismatchError(
+                    f"Table '{name}' contains {int(df['X'].duplicated().sum())} duplicate X value(s).")
+
+        train_indexed = self.train_df.set_index('X').sort_index()
+        ideal_indexed = self.ideal_df.set_index('X').sort_index()
+
+        if not train_indexed.index.equals(ideal_indexed.index):
+            differing = train_indexed.index.symmetric_difference(ideal_indexed.index)
+            raise DataMismatchError(
+                f"Training and ideal tables must contain identical X values; "
+                f"{len(differing)} X value(s) differ.")
+
+        self.train_df_aligned, self.ideal_df_aligned = train_indexed.align(ideal_indexed, join='inner', axis=0)
 
         self.best_fit_ranking = {}
         self.max_deviations = {}

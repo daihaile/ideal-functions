@@ -8,6 +8,7 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 from analyzer import Analyzer
+from exceptions.data_mismatch_error import DataMismatchError
 
 @pytest.fixture
 def mock_db_manager():
@@ -105,3 +106,56 @@ def test_analyzer_export_summary_table_threshold_uses_sqrt2(tmp_path):
     assert row['Max_Deviation'] == pytest.approx(0.1)          # non-zero, unlike the shared fixture
     assert row['Threshold_sqrt2'] == pytest.approx(row['Max_Deviation'] * np.sqrt(2))
     assert out.exists()
+
+def _make_db(train_df, ideal_df):
+    mock_db = MagicMock()
+    mock_db.read_table_to_dataframe.side_effect = lambda name: \
+        train_df if name == "training_data" else ideal_df
+    return mock_db
+
+
+def _frames():
+    train_df = pd.DataFrame({'X': [1.0, 2.0, 3.0, 4.0], 'y1': [1.1, 2.1, 3.1, 4.3]})
+    ideal_df = pd.DataFrame({
+        'X': [1.0, 2.0, 3.0, 4.0],
+        'y1': [1.0, 2.0, 4.0, 4.0],
+        'y2': [1.1, 2.1, 3.0, 4.0],
+        'y3': [0.0, 0.0, 0.0, 0.0],
+    })
+    return train_df, ideal_df
+
+
+def test_analyzer_pairs_on_x_not_row_position():
+    train_df, ideal_df = _frames()
+    ordered = Analyzer(_make_db(train_df, ideal_df))
+    ranking_o, dev_o = ordered.run_analysis()
+
+    shuffled_ideal = ideal_df.iloc[[2, 0, 3, 1]].reset_index(drop=True)
+    shuffled = Analyzer(_make_db(train_df, shuffled_ideal))
+    ranking_s, dev_s = shuffled.run_analysis()
+
+    assert ranking_s == ranking_o
+    assert dev_s == dev_o
+    assert ranking_o['y1'][0][0] == 'y2'
+
+
+def test_analyzer_different_x_sets_raise():
+    train_df, ideal_df = _frames()
+    ideal_df['X'] = [1.0, 2.0, 3.0, 5.0]
+    with pytest.raises(DataMismatchError):
+        Analyzer(_make_db(train_df, ideal_df))
+
+
+def test_analyzer_duplicate_x_in_training_raises():
+    train_df, ideal_df = _frames()
+    train_df['X'] = [1.0, 2.0, 2.0, 4.0]
+    with pytest.raises(DataMismatchError):
+        Analyzer(_make_db(train_df, ideal_df))
+
+
+def test_analyzer_missing_x_column_or_empty_frame_raises():
+    train_df, ideal_df = _frames()
+    with pytest.raises(DataMismatchError):
+        Analyzer(_make_db(train_df.drop(columns='X'), ideal_df))
+    with pytest.raises(DataMismatchError):
+        Analyzer(_make_db(train_df, pd.DataFrame()))
