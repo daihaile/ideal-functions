@@ -1,9 +1,37 @@
-﻿from database import DatabaseManager
+﻿"""Least-squares analysis of the training data against the 50 ideal functions.
+
+For every training column the Analyzer computes the sum of squared deviations
+(SSQ) to each ideal function and ranks the candidates, implementing the
+assignment's selection criterion::
+
+    SSQ_j = sum_i (y_train(x_i) - y_ideal_j(x_i)) ** 2
+
+
+For each training column the best-ranked ideal function and its maximum absolute
+deviation are retained. The mapping stage scales that deviation by sqrt(2) widening the vertical tolerance
+applied to test points.
+
+The training and ideal tables are paired on the X coordinate (not by row
+position) and must contain identical X values without duplicates; otherwise a
+DataMismatchError is raised.
+
+The second- and third-ranked candidates are recorded only as a diagnostic for how
+clearly the winner stands out; they are not used for mapping.
+"""
+
+import os
+
+import numpy as np
+import pandas as pd
+
+from database import DatabaseManager
+from exceptions.data_mismatch_error import DataMismatchError
 
 
 class Analyzer:
     """
-    handles analysis of finding best fit functions and calculating deviation
+    handles analysis of finding best fit functions and calculating deviation.
+    Training and ideal tables are paired on X and must contain identical X values.
     """
 
     def __init__(self, db_manager: DatabaseManager):
@@ -18,8 +46,25 @@ class Analyzer:
         self.train_df = self.db_manager.read_table_to_dataframe("training_data")
         self.ideal_df = self.db_manager.read_table_to_dataframe("ideal_functions")
 
-        self.train_df_aligned, self.ideal_df_aligned = self.train_df.align(self.ideal_df, join='inner', axis=0,
-                                                                           copy=True)
+        for name, df in (("training_data", self.train_df), ("ideal_functions", self.ideal_df)):
+            if df is None or df.empty or 'X' not in df.columns:
+                raise DataMismatchError(
+                    f"Table '{name}' is empty or lacks the required column 'X'. "
+                    f"Found columns: {list(df.columns) if df is not None else []}")
+            if df['X'].duplicated().any():
+                raise DataMismatchError(
+                    f"Table '{name}' contains {int(df['X'].duplicated().sum())} duplicate X value(s).")
+
+        train_indexed = self.train_df.set_index('X').sort_index()
+        ideal_indexed = self.ideal_df.set_index('X').sort_index()
+
+        if not train_indexed.index.equals(ideal_indexed.index):
+            differing = train_indexed.index.symmetric_difference(ideal_indexed.index)
+            raise DataMismatchError(
+                f"Training and ideal tables must contain identical X values; "
+                f"{len(differing)} X value(s) differ.")
+
+        self.train_df_aligned, self.ideal_df_aligned = train_indexed.align(ideal_indexed, join='inner', axis=0)
 
         self.best_fit_ranking = {}
         self.max_deviations = {}
@@ -70,3 +115,48 @@ class Analyzer:
 
         print("Analysis finished")
         return self.best_fit_ranking, self.max_deviations
+
+    def export_summary_table(self, output_path: str = "output/analysis_summary.csv") -> pd.DataFrame:
+        """
+        Export a one-row-per-training-column summary of the least-squares analysis.
+
+        Columns: Training_Col, Best_Ideal, SSQ_Best, Second_Best, SSQ_Second,
+        Third_Best, SSQ_Third, Max_Deviation, Threshold_sqrt2. The threshold is
+        the max absolute deviation of the best fit multiplied by sqrt(2), i.e.
+        the value later applied when mapping test points.
+
+        :param output_path: destination CSV path
+        :return: the summary DataFrame
+        """
+        rows = []
+        for train_col, top_fits in self.best_fit_ranking.items():
+            if not top_fits:
+                continue
+
+            best_ideal, ssq_best = top_fits[0]
+            second_ideal, ssq_second = top_fits[1] if len(top_fits) > 1 else (None, None)
+            third_ideal, ssq_third = top_fits[2] if len(top_fits) > 2 else (None, None)
+
+            max_deviation = self.max_deviations.get(best_ideal)
+            threshold = max_deviation * np.sqrt(2) if max_deviation is not None else None
+
+            rows.append({
+                'Training_Col': train_col,
+                'Best_Ideal': best_ideal,
+                'SSQ_Best': ssq_best,
+                'Second_Best': second_ideal,
+                'SSQ_Second': ssq_second,
+                'Third_Best': third_ideal,
+                'SSQ_Third': ssq_third,
+                'Max_Deviation': max_deviation,
+                'Threshold_sqrt2': threshold,
+            })
+
+        summary_df = pd.DataFrame(rows)
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        summary_df.to_csv(output_path, index=False)
+        print(f"Successfully saved analysis summary to {output_path}")
+        return summary_df

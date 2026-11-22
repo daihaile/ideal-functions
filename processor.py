@@ -1,6 +1,8 @@
-﻿import pandas as pd
+﻿import os
+
+import pandas as pd
 import numpy as np
-from database import DatabaseManager
+from database import DatabaseManager, COL_X_TEST, COL_Y_TEST, COL_DELTA_Y_TEST, COL_NO_IDEAL_FUNC, COL_Y_IDEAL, COL_MAPPING_THRESHOLD, COL_ORIGINAL_TRAIN_FUNC
 
 
 class DataMapper:
@@ -23,6 +25,8 @@ class DataMapper:
         self.max_deviations = max_deviations
         self.sqrt_2_factor = np.sqrt(2)
         self.results = []
+        self.unmapped = []
+        self.total_processed = 0
 
         self.ideal_to_train_map = {}
         for train_col, top_fits in best_fit_ranking.items():
@@ -61,13 +65,13 @@ class DataMapper:
                         print(f"Error saving to CSV: {e}")
 
                 results_df = results_df.rename(columns={
-                    'X': 'X (test func)',
-                    'Y': 'Y (test func)',
-                    'Delta_Y': 'Delta Y (test func)',
-                    'No_Ideal_Func': 'No. of ideal func',
-                     'Y_Ideal': 'Y_Ideal',
-                    'Mapping_Threshold': 'Mapping_Threshold',
-                    'Original_Train_Func': 'Original_Train_Func'
+                    'X': COL_X_TEST,
+                    'Y': COL_Y_TEST,
+                    'Delta_Y': COL_DELTA_Y_TEST,
+                    'No_Ideal_Func': COL_NO_IDEAL_FUNC,
+                     'Y_Ideal': COL_Y_IDEAL,
+                    'Mapping_Threshold': COL_MAPPING_THRESHOLD,
+                    'Original_Train_Func': COL_ORIGINAL_TRAIN_FUNC
                 })
 
                 self.db_manager.write_test_results(results_df, if_exists='replace')
@@ -86,19 +90,26 @@ class DataMapper:
              abs(y_test - y_ideal) <= max_deviation(ideal) * sqrt(2)
         if multiple functions match, the one with the lowest deviation is chosen
         """
+        self.total_processed += 1
         try:
             ideal_y_values = self.ideal_data.loc[x_test]
         except KeyError:
+            self.unmapped.append({'Reason': 'x_not_in_ideal'})
             return
 
         best_match = None
         min_deviation = float('inf')
+        closest_ratio = float('inf')
+        closest_deviation = float('inf')
 
         for ideal_col in self.chosen_ideal_cols:
 
             y_ideal = ideal_y_values[ideal_col]
             threshold = self.max_deviations[ideal_col] * self.sqrt_2_factor
             deviation = abs(y_test - y_ideal)
+            if deviation < closest_deviation:
+                closest_deviation = deviation
+                closest_ratio = deviation / threshold
             if deviation <= threshold:
                 if deviation < min_deviation:
                     min_deviation = deviation
@@ -117,3 +128,120 @@ class DataMapper:
                 'Mapping_Threshold': winning_threshold,
                 'Original_Train_Func': train_func
             })
+        else:
+            self.unmapped.append({'Reason': 'outside_threshold', 'Ratio': closest_ratio})
+
+    def compute_mapping_statistics(self, output_path: str = "output/mapping_statistics.csv") -> dict:
+        """
+        Summarize how many test points were mapped and how well they fit, including overall totals.
+
+        Writes one row per mapped ideal function (mapped count and min/max/mean/std
+        of the vertical deviation Delta Y) plus a final OVERALL row, and prints the
+        overall totals (processed, mapped, unmapped, rejection rate) to stdout.
+
+        :param output_path: destination CSV path
+        :return: dict with the overall counts and the per-ideal DataFrame
+        """
+        total_processed = self.total_processed
+        mapped = len(self.results)
+        unmapped = total_processed - mapped
+        rejection_rate = (unmapped / total_processed) if total_processed else 0.0
+
+        results_df = pd.DataFrame(self.results)
+
+        if mapped:
+            per_ideal = (
+                results_df
+                .groupby('No_Ideal_Func')['Delta_Y']
+                .agg(['count', 'min', 'max', 'mean', 'std'])
+                .reset_index()
+                .rename(columns={
+                    'No_Ideal_Func': 'Ideal_Function',
+                    'count': 'Mapped_Count',
+                    'min': 'Min_Delta_Y',
+                    'max': 'Max_Delta_Y',
+                    'mean': 'Mean_Delta_Y',
+                    'std': 'Std_Delta_Y',
+                })
+            )
+            per_ideal.insert(
+                1, 'Original_Train_Func',
+                per_ideal['Ideal_Function'].map(self.ideal_to_train_map),
+            )
+        else:
+            per_ideal = pd.DataFrame(columns=[
+                'Ideal_Function', 'Original_Train_Func', 'Mapped_Count',
+                'Min_Delta_Y', 'Max_Delta_Y', 'Mean_Delta_Y', 'Std_Delta_Y',
+            ])
+
+        overall = pd.DataFrame([{
+            'Ideal_Function': 'OVERALL',
+            'Original_Train_Func': '',
+            'Mapped_Count': mapped,
+            'Total_Processed': total_processed,
+            'Unmapped_Count': unmapped,
+            'Rejection_Rate': rejection_rate,
+            'Min_Delta_Y': results_df['Delta_Y'].min() if mapped else None,
+            'Max_Delta_Y': results_df['Delta_Y'].max() if mapped else None,
+            'Mean_Delta_Y': results_df['Delta_Y'].mean() if mapped else None,
+            'Std_Delta_Y': results_df['Delta_Y'].std() if mapped else None,
+        }])
+        statistics_df = pd.concat([per_ideal, overall], ignore_index=True)
+        statistics_df = statistics_df.reindex(columns=[
+            'Ideal_Function', 'Original_Train_Func', 'Mapped_Count',
+            'Total_Processed', 'Unmapped_Count', 'Rejection_Rate',
+            'Min_Delta_Y', 'Max_Delta_Y', 'Mean_Delta_Y', 'Std_Delta_Y',
+        ])
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        statistics_df.to_csv(output_path, index=False)
+
+        print(f"Total test points processed: {total_processed}")
+        print(f"Mapped: {mapped} | Unmapped: {unmapped} | Rejection rate: {rejection_rate:.2%}")
+        print(f"Successfully saved mapping statistics to {output_path}")
+
+        return {
+            'total_processed': total_processed,
+            'mapped': mapped,
+            'unmapped': unmapped,
+            'rejection_rate': rejection_rate,
+            'per_ideal': per_ideal,
+        }
+
+    def compute_rejection_summary(self, output_path: str = "output/unmapped_summary.csv") -> pd.DataFrame:
+        """
+        Summarize why test points were not mapped.
+
+        Counts unmapped points by reason (X not in the ideal table, or outside every
+        threshold) and splits the outside-threshold points by how far they miss, measured
+        as deviation / threshold of the closest chosen function (<= 2, 2 to 10, > 10).
+
+        :param output_path: destination CSV path
+        :return: DataFrame with columns Category, Count, Share_of_Unmapped
+        """
+        total = len(self.unmapped)
+        no_x = sum(1 for u in self.unmapped if u['Reason'] == 'x_not_in_ideal')
+        ratios = [u['Ratio'] for u in self.unmapped if u['Reason'] == 'outside_threshold']
+
+        counts = [
+            ('x_not_in_ideal', no_x),
+            ('outside_threshold', len(ratios)),
+            ('deviation <= 2 x threshold', sum(1 for r in ratios if r <= 2)),
+            ('2 x threshold < deviation <= 10 x threshold', sum(1 for r in ratios if 2 < r <= 10)),
+            ('deviation > 10 x threshold', sum(1 for r in ratios if r > 10)),
+        ]
+        summary_df = pd.DataFrame(counts, columns=['Category', 'Count'])
+        summary_df['Count'] = summary_df['Count'].astype(int)
+        summary_df['Share_of_Unmapped'] = (summary_df['Count'] / total) if total else 0.0
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        summary_df.to_csv(output_path, index=False)
+
+        print(f"Unmapped: {total} | X not in ideal: {no_x} | Outside threshold: {len(ratios)}")
+        print(f"Successfully saved rejection summary to {output_path}")
+
+        return summary_df
