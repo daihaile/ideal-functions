@@ -7,9 +7,24 @@ from processor import DataMapper
 from dataloader import TrainingLoader, IdealFunctionLoader
 from visualizer import Visualizer
 
+""" Pipeline that runs all stages of the ideal functions analysis in order.
 
+Stages: load CSV files, write them to the SQlite database, select best-fit ideal functions, map the test points and create the plots
+
+"""
 class Pipeline:
+    """
+    Run the full analysis from the input CSV files to the output files
+    """
     def __init__(self, train_path, ideal_path, test_path, output_csv_path, db_name="idealfunction.db"):
+        """
+        Store the file paths used by the pipeline
+        :param train_path: path to the training data CSV
+        :param ideal_path: path to the ideal functions CSV
+        :param test_path: path to the test data CSV
+        :param output_csv_path: path for the mapped test results CSV
+        :param db_name: name of the SQLite database file
+        """
         self.train_path = train_path
         self.ideal_path = ideal_path
         self.test_path = test_path
@@ -17,6 +32,10 @@ class Pipeline:
         self.db_name = db_name
 
     def run(self):
+        """
+        Run all pipeline stages in order
+        Errors are caught and printed, so the program ends with a message instead of a traceback
+        """
         try:
             db_manager = DatabaseManager(db_name=self.db_name)
 

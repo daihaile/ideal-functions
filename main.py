@@ -1,4 +1,6 @@
-﻿from pipeline import Pipeline
+﻿"""Entry point: runs the pipeline on the CSV files in data/."""
+
+from pipeline import Pipeline
 
 if __name__ == "__main__":
     Pipeline(
