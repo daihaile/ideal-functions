@@ -179,3 +179,84 @@ def test_compute_mapping_statistics_empty_results(tmp_path):
     ]
     assert len(df) == 1
     assert df.iloc[0]['Ideal_Function'] == 'OVERALL'
+
+def _rejection_processor():
+    # threshold = 0.5 * sqrt(2) = ~0.707
+    ideal_df = pd.DataFrame({'X': [0.0, 10.0], 'y1': [0.0, 10.0]})
+    return DataMapper(
+        db_manager=MagicMock(),
+        ideal_df=ideal_df,
+        max_deviations={'y1': 0.5},
+        best_fit_ranking={'y1_train': [('y1', 0.1)]},
+    )
+
+
+def test_unmapped_unknown_x_recorded():
+    processor = _rejection_processor()
+
+    processor.map_point(999.0, 0.0)
+
+    assert processor.unmapped == [{'Reason': 'x_not_in_ideal'}]
+
+
+def test_unmapped_outside_threshold_records_ratio():
+    processor = _rejection_processor()
+    threshold = 0.5 * np.sqrt(2)
+
+    processor.map_point(0.0, 2 * threshold)
+
+    assert len(processor.unmapped) == 1
+    assert processor.unmapped[0]['Reason'] == 'outside_threshold'
+    assert processor.unmapped[0]['Ratio'] == pytest.approx(2.0)
+
+
+def test_compute_rejection_summary_bands(tmp_path):
+    processor = _rejection_processor()
+    threshold = 0.5 * np.sqrt(2)
+    processor.map_point(0.0, 1.5 * threshold)
+    processor.map_point(0.0, 5 * threshold)
+    processor.map_point(10.0, 10 + 20 * threshold)
+    processor.map_point(999.0, 0.0)
+
+    out = tmp_path / "unmapped_summary.csv"
+    summary = processor.compute_rejection_summary(output_path=str(out))
+
+    counts = dict(zip(summary['Category'], summary['Count']))
+    assert counts == {
+        'x_not_in_ideal': 1,
+        'outside_threshold': 3,
+        'deviation <= 2 x threshold': 1,
+        '2 x threshold < deviation <= 10 x threshold': 1,
+        'deviation > 10 x threshold': 1,
+    }
+    shares = dict(zip(summary['Category'], summary['Share_of_Unmapped']))
+    assert shares['outside_threshold'] == pytest.approx(0.75)
+
+    df = pd.read_csv(out)
+    assert list(df.columns) == ['Category', 'Count', 'Share_of_Unmapped']
+    assert len(df) == 5
+
+
+def test_compute_rejection_summary_empty(tmp_path):
+    processor = _rejection_processor()
+    out = tmp_path / "empty_unmapped_summary.csv"
+
+    summary = processor.compute_rejection_summary(output_path=str(out))
+
+    assert summary['Count'].tolist() == [0, 0, 0, 0, 0]
+    assert summary['Share_of_Unmapped'].tolist() == [0.0] * 5
+    df = pd.read_csv(out)
+    assert list(df.columns) == ['Category', 'Count', 'Share_of_Unmapped']
+    assert df['Count'].sum() == 0
+
+
+def test_mapped_points_never_in_unmapped():
+    processor = _rejection_processor()
+    processor.map_point(0.0, 0.1)      # mapped
+    processor.map_point(10.0, 10.5)    # mapped
+    processor.map_point(0.0, 5.0)      # outside threshold
+    processor.map_point(999.0, 0.0)    # unknown x
+
+    assert len(processor.results) == 2
+    assert len(processor.unmapped) == 2
+    assert len(processor.results) + len(processor.unmapped) == processor.total_processed

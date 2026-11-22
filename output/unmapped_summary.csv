@@ -1,0 +1,6 @@
+Category,Count,Share_of_Unmapped
+x_not_in_ideal,0,0.0
+outside_threshold,66,1.0
+deviation <= 2 x threshold,45,0.6818181818181818
+2 x threshold < deviation <= 10 x threshold,0,0.0
+deviation > 10 x threshold,21,0.3181818181818182

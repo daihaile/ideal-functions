@@ -25,6 +25,7 @@ class DataMapper:
         self.max_deviations = max_deviations
         self.sqrt_2_factor = np.sqrt(2)
         self.results = []
+        self.unmapped = []
         self.total_processed = 0
 
         self.ideal_to_train_map = {}
@@ -93,16 +94,22 @@ class DataMapper:
         try:
             ideal_y_values = self.ideal_data.loc[x_test]
         except KeyError:
+            self.unmapped.append({'Reason': 'x_not_in_ideal'})
             return
 
         best_match = None
         min_deviation = float('inf')
+        closest_ratio = float('inf')
+        closest_deviation = float('inf')
 
         for ideal_col in self.chosen_ideal_cols:
 
             y_ideal = ideal_y_values[ideal_col]
             threshold = self.max_deviations[ideal_col] * self.sqrt_2_factor
             deviation = abs(y_test - y_ideal)
+            if deviation < closest_deviation:
+                closest_deviation = deviation
+                closest_ratio = deviation / threshold
             if deviation <= threshold:
                 if deviation < min_deviation:
                     min_deviation = deviation
@@ -121,6 +128,8 @@ class DataMapper:
                 'Mapping_Threshold': winning_threshold,
                 'Original_Train_Func': train_func
             })
+        else:
+            self.unmapped.append({'Reason': 'outside_threshold', 'Ratio': closest_ratio})
 
     def compute_mapping_statistics(self, output_path: str = "output/mapping_statistics.csv") -> dict:
         """
@@ -200,3 +209,39 @@ class DataMapper:
             'rejection_rate': rejection_rate,
             'per_ideal': per_ideal,
         }
+
+    def compute_rejection_summary(self, output_path: str = "output/unmapped_summary.csv") -> pd.DataFrame:
+        """
+        Summarize why test points were not mapped.
+
+        Counts unmapped points by reason (X not in the ideal table, or outside every
+        threshold) and splits the outside-threshold points by how far they miss, measured
+        as deviation / threshold of the closest chosen function (<= 2, 2 to 10, > 10).
+
+        :param output_path: destination CSV path
+        :return: DataFrame with columns Category, Count, Share_of_Unmapped
+        """
+        total = len(self.unmapped)
+        no_x = sum(1 for u in self.unmapped if u['Reason'] == 'x_not_in_ideal')
+        ratios = [u['Ratio'] for u in self.unmapped if u['Reason'] == 'outside_threshold']
+
+        counts = [
+            ('x_not_in_ideal', no_x),
+            ('outside_threshold', len(ratios)),
+            ('deviation <= 2 x threshold', sum(1 for r in ratios if r <= 2)),
+            ('2 x threshold < deviation <= 10 x threshold', sum(1 for r in ratios if 2 < r <= 10)),
+            ('deviation > 10 x threshold', sum(1 for r in ratios if r > 10)),
+        ]
+        summary_df = pd.DataFrame(counts, columns=['Category', 'Count'])
+        summary_df['Count'] = summary_df['Count'].astype(int)
+        summary_df['Share_of_Unmapped'] = (summary_df['Count'] / total) if total else 0.0
+
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+        summary_df.to_csv(output_path, index=False)
+
+        print(f"Unmapped: {total} | X not in ideal: {no_x} | Outside threshold: {len(ratios)}")
+        print(f"Successfully saved rejection summary to {output_path}")
+
+        return summary_df

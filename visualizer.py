@@ -1,7 +1,7 @@
 ﻿import pandas as pd
 from database import DatabaseManager, COL_X_TEST, COL_Y_TEST, COL_DELTA_Y_TEST, COL_NO_IDEAL_FUNC, COL_Y_IDEAL, COL_MAPPING_THRESHOLD, COL_ORIGINAL_TRAIN_FUNC
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, HoverTool, CategoricalColorMapper
+from bokeh.models import ColumnDataSource, HoverTool, CategoricalColorMapper, Span
 from bokeh.layouts import gridplot
 from bokeh.palettes import Category10
 from bokeh.io import output_file, save
@@ -268,22 +268,27 @@ class Visualizer:
         return plots
     def create_deviation_histogram(self):
         """
-        creats a histogram of 'Delta Y'
+        creates a histogram of the deviations of the mapped test points, with the
+        maximum training deviation and the mapping threshold marked as vertical lines
         :return:
         """
 
-        deviations = self.test_results_df[COL_DELTA_Y_TEST]
+        deviations = self.test_results_df[COL_DELTA_Y_TEST].astype(float)
+        thresholds = self.test_results_df[COL_MAPPING_THRESHOLD].astype(float).unique()
 
-        hist, edges = np.histogram(deviations, density=True, bins=20)
+        # bins span 0 to the largest threshold, so every mapped deviation falls inside
+        upper = float(thresholds.max()) if len(thresholds) else 1.0
+        edges = np.linspace(0, upper, 11)
+        hist, edges = np.histogram(deviations, bins=edges)
 
         hist_df = pd.DataFrame({'counts': hist, 'left': edges[:-1], 'right': edges[1:]})
         hist_df['interval'] = [f"{left:.2f} to {right:.2f}" for left, right in zip(hist_df['left'], hist_df['right'])]
 
         p = figure(
-            title="Distribution of Deviations",
-            x_axis_label="Deviation",
-            y_axis_label="Frequency",
-            width=300,
+            title="Distribution of deviations of the mapped test points",
+            x_axis_label="Deviation (absolute vertical)",
+            y_axis_label="Number of mapped points",
+            width=600,
             height=400,
         )
 
@@ -297,6 +302,24 @@ class Visualizer:
             line_color="white",
             alpha=0.7
         )
+
+        if len(thresholds):
+            threshold = float(thresholds.mean())
+            d_max = threshold / np.sqrt(2)
+            p.add_layout(Span(
+                location=d_max, dimension='height', line_color="#2CA02C",
+                line_dash="dashed", line_width=2
+            ))
+            p.add_layout(Span(
+                location=threshold, dimension='height', line_color="#D62728",
+                line_dash="solid", line_width=2
+            ))
+            # Span has no legend entry of its own, so add invisible lines for the legend
+            p.line([], [], line_color="#2CA02C", line_dash="dashed", line_width=2,
+                   legend_label=f"Max training deviation (about {d_max:.2f})")
+            p.line([], [], line_color="#D62728", line_dash="solid", line_width=2,
+                   legend_label=f"Threshold = d_max x sqrt(2) (about {threshold:.2f})")
+            p.legend.location = "top_left"
 
         hover = HoverTool(tooltips=[('Interval', '@interval'), ('Count', '@counts')])
         p.add_tools(hover)

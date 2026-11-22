@@ -47,6 +47,7 @@ class Pipeline:
             )
             processor.process_test_file(self.test_path, self.output_csv_path)
             processor.compute_mapping_statistics()
+            processor.compute_rejection_summary()
 
             visualizer = Visualizer(db_manager, best_fit_ranking)
             visualizer.generate_and_save_plots(self.test_path)
