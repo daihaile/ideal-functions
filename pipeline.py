@@ -64,11 +64,11 @@ class Pipeline:
                 max_deviations=max_deviations,
                 best_fit_ranking=best_fit_ranking,
             )
-            processor.process_test_file(self.test_path, self.output_csv_path)
+            mapped_results = processor.process_test_file(self.test_path, self.output_csv_path)
             processor.compute_mapping_statistics()
             processor.compute_rejection_summary()
 
-            visualizer = Visualizer(db_manager, best_fit_ranking)
+            visualizer = Visualizer(db_manager, best_fit_ranking, mapped_results)
             visualizer.generate_and_save_plots(self.test_path)
 
         except DataMismatchError as e:

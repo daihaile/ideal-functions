@@ -66,3 +66,10 @@ idealfunction.db
 visuals.html
 *.pdf
 idealfunction.db
+tools/docx2md.py
+tools/fixsvg.py
+tools/fixsvg.py
+tools/fo2text.py
+grep.exe.stackdump
+assignment.md
+desktop.ini

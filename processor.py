@@ -33,12 +33,13 @@ class DataMapper:
             ideal_col = top_fits[0][0]
             self.ideal_to_train_map[ideal_col] = train_col
 
-    def process_test_file(self, test_file_path: str, output_csv_path: str = None):
+    def process_test_file(self, test_file_path: str, output_csv_path: str = None) -> pd.DataFrame:
         """
         Reads the test CSV file line-by-line, processes each point and saves the results to the database.
         :param test_file_path: path to the test CSV file
         :param output_csv_path: path to save the results CSV file
 
+        :return: mapped rows with the diagnostic fields used by the plots
         :raises FileNotFoundError: if the test file is not found
         """
         print(f"Starting to process test file: {test_file_path}...")
@@ -54,27 +55,22 @@ class DataMapper:
 
             print(f"Finished processing test file. Found {len(self.results)} mappable points.")
 
-            if self.results:
-                results_df = pd.DataFrame(self.results)
+            results_df = pd.DataFrame(self.results, columns=[
+                'X', 'Y', 'Delta_Y', 'No_Ideal_Func',
+                COL_Y_IDEAL, COL_MAPPING_THRESHOLD, COL_ORIGINAL_TRAIN_FUNC,
+            ])
+            if output_csv_path:
+                results_df.to_csv(output_csv_path, index=False)
+                print(f"Successfully saved mapped results to {output_csv_path}")
 
-                if output_csv_path:
-                    try:
-                        results_df.to_csv(output_csv_path, index=False)
-                        print(f"Successfully saved mapped results to {output_csv_path}")
-                    except Exception as e:
-                        print(f"Error saving to CSV: {e}")
-
-                results_df = results_df.rename(columns={
-                    'X': COL_X_TEST,
-                    'Y': COL_Y_TEST,
-                    'Delta_Y': COL_DELTA_Y_TEST,
-                    'No_Ideal_Func': COL_NO_IDEAL_FUNC,
-                     'Y_Ideal': COL_Y_IDEAL,
-                    'Mapping_Threshold': COL_MAPPING_THRESHOLD,
-                    'Original_Train_Func': COL_ORIGINAL_TRAIN_FUNC
-                })
-
-                self.db_manager.write_test_results(results_df, if_exists='replace')
+            mapped_results = results_df.rename(columns={
+                'X': COL_X_TEST,
+                'Y': COL_Y_TEST,
+                'Delta_Y': COL_DELTA_Y_TEST,
+                'No_Ideal_Func': COL_NO_IDEAL_FUNC,
+            })
+            self.db_manager.write_test_results(mapped_results, if_exists='replace')
+            return mapped_results
 
         except FileNotFoundError:
             print(f"Error: Test file not found at {test_file_path}")
