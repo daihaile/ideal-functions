@@ -1,5 +1,5 @@
 ﻿import pandas as pd
-from sqlalchemy import create_engine, Column, Float, String, Integer
+from sqlalchemy import create_engine, Column, Float, String, Table
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -36,21 +36,15 @@ class IdealFunctions(Base):
         vars()[f'y{i}'] = Column(Float)
 
 
-class TestResults(Base):
-    """
-    SQLAlchemy model for the test results table
-    """
-    __tablename__ = 'test_results'
-    id = Column(Integer, primary_key=True, autoincrement=True)
+# A test coordinate may occur more than once in the input.
+test_results = Table(
+    'test_results', Base.metadata,
+    Column(COL_X_TEST, Float),
+    Column(COL_Y_TEST, Float),
+    Column(COL_DELTA_Y_TEST, Float),
+    Column(COL_NO_IDEAL_FUNC, String),
+)
 
-    X = Column(COL_X_TEST, Float)
-    Y = Column(COL_Y_TEST, Float)
-    Delta_Y = Column(COL_DELTA_Y_TEST, Float)
-    No_Ideal_Func = Column(COL_NO_IDEAL_FUNC, String)
-
-    Y_Ideal = Column(COL_Y_IDEAL, Float)
-    Mapping_Threshold = Column(COL_MAPPING_THRESHOLD, Float)
-    Original_Train_Func = Column(COL_ORIGINAL_TRAIN_FUNC, String)
 
 class DatabaseManager:
     """
@@ -81,8 +75,11 @@ class DatabaseManager:
     def write_test_results(self, results_df, if_exists='replace'):
         """Writes the test results DataFrame to the 'test_results' table"""
         try:
-            with self.engine.connect() as conn:
-                results_df.to_sql('test_results', conn, if_exists=if_exists, index=False)
+            column_types = {col.name: col.type for col in test_results.columns}
+            with self.engine.begin() as conn:
+                results_df.loc[:, list(column_types)].to_sql(
+                    test_results.name, conn, if_exists=if_exists, index=False, dtype=column_types
+                )
             print(f"Successfully wrote data to 'test_results'.")
         except Exception as e:
             print(f"Error writing test results to database: {e}")

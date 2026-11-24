@@ -70,3 +70,27 @@ def test_read_training_data_keeps_lowercase_columns(tmp_path):
     df = db.read_table_to_dataframe('training_data')
 
     assert list(df.columns) == ['X', 'y1', 'y2', 'y3', 'y4']
+
+
+def test_mapping_outputs_share_rows_and_use_distinct_schemas(tmp_path):
+    from processor import DataMapper
+
+    db = DatabaseManager(db_name=str(tmp_path / "results.db"))
+    test_path = tmp_path / "test.csv"
+    output_path = tmp_path / "mapped.csv"
+    sql_columns = ["X (test func)", "Y (test func)", "Delta Y (test func)", "No. of ideal func"]
+    csv_columns = ["X", "Y", "Delta_Y", "No_Ideal_Func", "Y_Ideal", "Mapping_Threshold", "Original_Train_Func"]
+    ideal = pd.DataFrame({"X": [1.0], "y1": [2.0]})
+
+    for y, expected_count in [(2.25, 2), (20.0, 0)]:
+        pd.DataFrame({"x": [1.0, 1.0], "y": [y, y]}).to_csv(test_path, index=False)
+        mapper = DataMapper(db, ideal, {"y1": 0.5}, {"y_train": [("y1", 0.0)]})
+        details = mapper.process_test_file(test_path, output_path)
+        stored = db.read_table_to_dataframe("test_results")
+        exported = pd.read_csv(output_path)
+        assert list(stored.columns) == sql_columns
+        assert list(exported.columns) == csv_columns
+        assert len(stored) == len(exported) == len(details) == expected_count
+        if expected_count:
+            assert list(stored.itertuples(index=False, name=None)) == [(1.0, 2.25, 0.25, "y1")] * 2
+            assert details["Mapping_Threshold"].iloc[0] == pytest.approx(0.5 * 2**0.5)

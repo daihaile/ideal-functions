@@ -10,11 +10,12 @@ import numpy as np
 class Visualizer:
     """Handles Bokeh visualizations."""
 
-    def __init__(self, db_manager: DatabaseManager, best_fit_ranking: dict):
+    def __init__(self, db_manager: DatabaseManager, best_fit_ranking: dict, mapped_results: pd.DataFrame):
         """
         Initalizes the visualizer
         :param db_manager:
-        :param best_fit_map:
+        :param best_fit_ranking: ranked ideal functions for each training column
+        :param mapped_results: mapped points with their plotting diagnostics
         """
         self.db_manager = db_manager
         self.best_fit_ranking = best_fit_ranking
@@ -22,7 +23,7 @@ class Visualizer:
         #load data from db
         self.train_df = self.db_manager.read_table_to_dataframe("training_data")
         self.ideal_df = self.db_manager.read_table_to_dataframe("ideal_functions")
-        self.test_results_df = self.db_manager.read_table_to_dataframe("test_results")
+        self.test_results_df = mapped_results
 
         self.winner_funcs = [v[0][0] for v in self.best_fit_ranking.values()]
         self.colors = Category10[4]
